@@ -4,7 +4,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.sun.codemodel.*;
-import org.graylog2.rest.resources.RestResource;
 import org.reflections.Reflections;
 
 import javax.ws.rs.*;
@@ -43,11 +42,11 @@ public class GenerateRoutes {
 
     public static void main(String[] argv) {
         // Just "touching" class in server jar so it gets loaded.
-        RestResource resource = null;
+        org.graylog2.rest.resources.RestResource resource = null;
 
         JCodeModel codeModel = new JCodeModel();
 
-        Reflections ref = new Reflections("org.graylog2");
+        Reflections ref = new Reflections("org.graylog2.rest.resources");
         Set<Class<?>> classes = ref.getTypesAnnotatedWith(Path.class);
 
         List<RouteClass> routeClassList = Lists.newArrayList();

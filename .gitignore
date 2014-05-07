@@ -1,4 +1,5 @@
 .idea
 target
 *.iml
+src/main/java/org/graylog2/restroutes/generated
 
