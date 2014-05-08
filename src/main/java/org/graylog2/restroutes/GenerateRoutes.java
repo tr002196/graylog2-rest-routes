@@ -43,7 +43,7 @@ public class GenerateRoutes {
         // do the same for radio resources
         JDefinedClass radioRouter = null;
         try {
-            radioRouter = codeModel._class(packagePrefix + ".radio");
+            radioRouter = codeModel._class(packagePrefix + ".Radio");
         } catch (JClassAlreadyExistsException e) {
             e.printStackTrace();
             System.exit(-1);
