@@ -1,19 +1,14 @@
 package org.graylog2.restroutes;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.sun.codemodel.*;
-import org.reflections.Reflections;
+import org.graylog2.restroutes.internal.ResourceRoutesParser;
+import org.graylog2.restroutes.internal.RouteClassGenerator;
+import org.graylog2.restroutes.internal.RouteClass;
+import org.graylog2.restroutes.internal.RouterGenerator;
 
-import javax.ws.rs.*;
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * @author Dennis Oelkers <dennis@torch.sh>
@@ -21,80 +16,12 @@ import java.util.Set;
 public class GenerateRoutes {
     private static final String packagePrefix = "org.graylog2.restroutes.generated";
 
-    private static Set<Class<?>> httpMethods() {
-        Set<Class<?>> methods = Sets.newHashSet();
-        methods.add(GET.class);
-        methods.add(POST.class);
-        methods.add(PUT.class);
-        methods.add(DELETE.class);
-
-        return methods;
-    }
-
-    private static Class<?> httpMethodOfMethod(Method method) {
-        for (Class methodAnn : httpMethods()) {
-            if (method.getAnnotation(methodAnn) != null)
-                return methodAnn;
-        }
-
-        return null;
-    }
-
     public static void main(String[] argv) {
         // Just "touching" class in server jar so it gets loaded.
         org.graylog2.rest.resources.RestResource resource = null;
+        org.graylog2.radio.rest.resources.RestResource radioResource = null;
 
         JCodeModel codeModel = new JCodeModel();
-
-        Reflections ref = new Reflections("org.graylog2.rest.resources");
-        Set<Class<?>> classes = ref.getTypesAnnotatedWith(Path.class);
-
-        List<RouteClass> routeClassList = Lists.newArrayList();
-
-        for (Class<?> klazz : classes) {
-            Path pathAnn = klazz.getAnnotation(Path.class);
-            if (pathAnn == null)
-                continue;
-
-            String path = pathAnn.value();
-
-            RouteClass routeClass = new RouteClass(klazz, path);
-            routeClassList.add(routeClass);
-
-            for (Method method : klazz.getMethods()) {
-                Set<Annotation> anns = Sets.newHashSet(method.getAnnotations());
-                Class<?> httpMethod = httpMethodOfMethod(method);
-
-                if (httpMethod == null)
-                    continue;
-
-                Path ann = method.getAnnotation(Path.class);
-
-                StringBuilder buildPath = new StringBuilder(path);
-
-                if (ann != null) {
-                    String methodPath = ann.value();
-                    if (!path.endsWith("/") && !methodPath.startsWith("/"))
-                        buildPath.append("/");
-
-                    buildPath.append(methodPath);
-                }
-                //System.out.println(httpMethod.getSimpleName() + "\t\t" + buildPath + ": " + klazz.getSimpleName() + "." + method.getName());
-                Map<PathParam, Class<?>> pathParamTypeMap = Maps.newLinkedHashMap(); // Using a linked hash map due to its preservation insertion order
-                int i = 0;
-                for (Annotation[] annotations : method.getParameterAnnotations()) {
-                    for (Annotation annotation :annotations)
-                        if (annotation instanceof PathParam) {
-                            final Class<?> type = method.getParameterTypes()[i];
-                            pathParamTypeMap.put((PathParam) annotation, type);
-                        }
-                    i++;
-                }
-
-                Route route = new Route(httpMethod.getSimpleName(), buildPath.toString(), klazz, method, pathParamTypeMap);
-                routeClass.addRoute(route);
-            }
-        }
 
         JDefinedClass router = null;
         try {
@@ -104,16 +31,32 @@ public class GenerateRoutes {
             System.exit(-1);
         }
 
-        ClassGenerator generator = new ClassGenerator(packagePrefix, codeModel);
-        for (RouteClass routeClass : routeClassList) {
-            JDefinedClass definedClass = generator.generate(routeClass);
-            if (definedClass != null) {
-                JMethod method = router.method(JMod.PUBLIC | JMod.STATIC, definedClass, routeClass.getKlazz().getSimpleName());
-                JBlock block = method.body();
-                block.directStatement("return new " + routeClass.getKlazz().getSimpleName() + "();");
-            }
+        final ResourceRoutesParser parser = new ResourceRoutesParser("org.graylog2.rest.resources");
+
+        final List<RouteClass> routeClassList = parser.buildClasses();
+
+        final RouteClassGenerator generator = new RouteClassGenerator(packagePrefix, codeModel);
+
+        final RouterGenerator routerGenerator = new RouterGenerator(router, generator);
+        routerGenerator.build(routeClassList);
+
+        // do the same for radio resources
+        JDefinedClass radioRouter = null;
+        try {
+            radioRouter = codeModel._class(packagePrefix + ".radio");
+        } catch (JClassAlreadyExistsException e) {
+            e.printStackTrace();
+            System.exit(-1);
         }
 
+        final ResourceRoutesParser radioParser = new ResourceRoutesParser("org.graylog2.radio.rest.resources");
+        final List<RouteClass> radioRouteClassList = radioParser.buildClasses();
+        final RouteClassGenerator radioGenerator = new RouteClassGenerator(packagePrefix + ".radio", codeModel);
+        final RouterGenerator radioRouterGenerator = new RouterGenerator(radioRouter, radioGenerator, JMod.PUBLIC);
+        radioRouterGenerator.build(radioRouteClassList);
+
+        JMethod radioMethod = router.method(JMod.PUBLIC | JMod.STATIC, radioRouter, "radio");
+        radioMethod.body().directStatement("return new " + radioRouter.name() + "();");
 
         try {
             File dest = new File("src/main/java");

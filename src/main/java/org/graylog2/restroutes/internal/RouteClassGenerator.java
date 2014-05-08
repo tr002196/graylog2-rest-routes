@@ -1,6 +1,7 @@
-package org.graylog2.restroutes;
+package org.graylog2.restroutes.internal;
 
 import com.sun.codemodel.*;
+import org.graylog2.restroutes.PathMethod;
 
 import javax.ws.rs.PathParam;
 import java.util.Map;
@@ -8,11 +9,11 @@ import java.util.Map;
 /**
  * @author Dennis Oelkers <dennis@torch.sh>
  */
-public class ClassGenerator {
+public class RouteClassGenerator {
     private final JCodeModel codeModel;
     private final String packagePrefix;
 
-    public ClassGenerator(String packagePrefix, JCodeModel codeModel) {
+    public RouteClassGenerator(String packagePrefix, JCodeModel codeModel) {
         this.packagePrefix = packagePrefix;
         this.codeModel = codeModel;
     }

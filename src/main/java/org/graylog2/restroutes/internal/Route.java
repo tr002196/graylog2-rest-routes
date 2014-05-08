@@ -1,4 +1,4 @@
-package org.graylog2.restroutes;
+package org.graylog2.restroutes.internal;
 
 import com.beust.jcommander.internal.Lists;
 import com.beust.jcommander.internal.Maps;
